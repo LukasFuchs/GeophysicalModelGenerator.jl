@@ -52,17 +52,17 @@ data_Moho1 = GeoData(lon,lat,depth,(MohoDepth=depth*km,))
 #   depth ϵ [ -57.46 km - -21.34 km]
 #   fields: (:MohoDepth,)
 # ```
-Write_Paraview(data_Moho1, "Spada_Moho_Europe", PointsData=true)
+write_paraview(data_Moho1, "Spada_Moho_Europe", PointsData=true)
 
 # And we can do the same with the other two Moho's:
 data = readdlm("Moho_Map_Data-WesternAlps-SpadaETAL2013_Moho2.txt",' ',Float64,'\n', skipstart=38,header=false);
 lon, lat, depth        = data[:,1], data[:,2], -data[:,3];
 data_Moho2 = GeoData(lon,lat,depth,(MohoDepth=depth*km,))
-Write_Paraview(data_Moho2, "Spada_Moho_Adria", PointsData=true)
+write_paraview(data_Moho2, "Spada_Moho_Adria", PointsData=true)
 data =readdlm("Moho_Map_Data-WesternAlps-SpadaETAL2013_Moho3.txt",' ',Float64,'\n', skipstart=38,header=false);
 lon, lat, depth        = data[:,1], data[:,2], -data[:,3];
 data_Moho3 = GeoData(lon,lat,depth,(MohoDepth=depth*km,))
-Write_Paraview(data_Moho3, "Spada_Moho_Tyrrhenia", PointsData=true)
+write_paraview(data_Moho3, "Spada_Moho_Tyrrhenia", PointsData=true)
 
 # If we plot this in paraview, it looks like this:
 # ![DataPoints_PV](../assets/img/Tutorial_MohoSpada_LonLat_Paraview.png)
@@ -75,7 +75,7 @@ depth = [data_Moho1.depth.val; data_Moho2.depth.val; data_Moho3.depth.val];
 data_Moho_combined = GeoData(lon, lat, depth, (MohoDepth=depth*km,))
 
 # Next, we define a regular lon/lat grid
-Lon, Lat, Depth  = LonLatDepthGrid(4.1:0.1:11.9,42.5:.1:49,-30km)
+Lon, Lat, Depth  = lonlatdepth_grid(4.1:0.1:11.9,42.5:.1:49,-30km)
 
 # We will use a nearest neighbor interpolation method to fit a surface through the data, which has the advantage that it will take the discontinuities into account. 
 # This can be done with `nearest_point_indices`
@@ -84,14 +84,13 @@ Depth = depth[idx]
 
 # Now, we can create a `GeoData` structure with the regular surface and save it to paraview:
 data_Moho = GeoData(Lon, Lat, Depth, (MohoDepth=Depth,))
-Write_Paraview(data_Moho, "Spada_Moho_combined")
+write_paraview(data_Moho, "Spada_Moho_combined")
 
 # The result is shown here, where the previous points are colored white and are a bit smaller. Obviously, the datasets coincide well.
 # ![DataPoints_Moho_surface](../assets/img/Tutorial_MohoSpada_Surface_Paraview.png)
 
 # ## 5. Julia script
-# The full julia script that does it all is given [here](https://github.com/JuliaGeodynamics/GeophysicalModelGenerator.jl/tree/main/tutorials/Tutorial_MohoTopo_Spada.jl). You need to be in the same directory as in the data file, after which you can run it in julia with
-#include("Tutorial_MohoTopo_Spada.jl")
+# The full julia script that does it all is given [here](https://github.com/JuliaGeodynamics/GeophysicalModelGenerator.jl/tree/main/tutorials/Tutorial_MohoTopo_Spada.jl). 
 
 #src Note: The markdown page is generated using:
 #src Literate.markdown("tutorials/Tutorial_MohoTopo_Spada.jl","docs/src/man",keepcomments=true, execute=false, codefence = "```julia" => "```")

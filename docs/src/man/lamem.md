@@ -10,11 +10,11 @@ The routines provided here have the following functionality:
 - Read a LaMEM timestep
 
 ```@docs
-GeophysicalModelGenerator.ReadLaMEM_InputFile
-GeophysicalModelGenerator.GetProcessorPartitioning
-GeophysicalModelGenerator.Save_LaMEMTopography
-GeophysicalModelGenerator.Save_LaMEMMarkersParallel
-GeophysicalModelGenerator.ReadData_PVTR
+GeophysicalModelGenerator.read_LaMEM_inputfile
+GeophysicalModelGenerator.get_processor_partitioning
+GeophysicalModelGenerator.save_LaMEM_topography
+GeophysicalModelGenerator.save_LaMEM_markers_parallel
+GeophysicalModelGenerator.read_data_PVTR
 GeophysicalModelGenerator.LaMEM_grid
-GeophysicalModelGenerator.CreatePartitioningFile
+GeophysicalModelGenerator.create_partitioning_file
 ```

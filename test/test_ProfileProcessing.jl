@@ -37,7 +37,7 @@ Datasets        =   [data_Vol1,data_Vol2, data_Surf, data_EQ, data_SS]
 @test keys(VolData) == (:Hua2017, :Plomerova2022)
 
 # read datasets from file
-Datasets_temp = Load_Dataset_file("test_files/AlpineData.txt")
+Datasets_temp = load_dataset_file("test_files/AlpineData.txt")
 @test Datasets_temp[2].DirName == GMG_Dataset("INGV","Point","./Seismicity/CLASS/class_seis_alps.jld2", true).DirName
 
 # Load data of all Datasets & split them in type of data
@@ -45,13 +45,13 @@ Data = load_GMG(Datasets)
 @test keys(Data.Volume) == (:Hua2017, :Plomerova2022)
 
 # Combine volumetric datasets into one
-VolData_combined1 = combine_VolData(Data.Volume)
+VolData_combined1 = combine_vol_data(Data.Volume)
 @test keys(VolData_combined1.fields) == (:Hua2017_Vp, :Hua2017_dVp_perc, :Plomerova2022_Vp, :Plomerova2022_dVp)
 
-VolData_combined2 = combine_VolData(Data.Volume, dims=(50,51,52))
+VolData_combined2 = combine_vol_data(Data.Volume, dims=(50,51,52))
 @test VolData_combined2.fields.Hua2017_Vp[1000] ≈ 10.6904
 
-VolData_combined3 = combine_VolData(Data.Volume, lon=(1,22), lat=(40,52), dims=(50,51,52))
+VolData_combined3 = combine_vol_data(Data.Volume, lon=(1,22), lat=(40,52), dims=(50,51,52))
 @test isnan(VolData_combined3.fields.Hua2017_Vp[1000])
 
 # Define horizontal & vertical profiles
@@ -61,46 +61,46 @@ prof3 = ProfileData(start_lonlat=(5,45), end_lonlat=(5,49))
 prof4 = ProfileData(depth = -20)
 
 # test internal routines to intersect profile with volumetric data:
-GeophysicalModelGenerator.CreateProfileVolume!(prof1, VolData_combined1)
+GeophysicalModelGenerator.create_profile_volume!(prof1, VolData_combined1)
 @test prof1.VolData.fields.Hua2017_Vp[30,40] ≈ 9.141520976523731
 
-GeophysicalModelGenerator.CreateProfileVolume!(prof2, VolData_combined1)
+GeophysicalModelGenerator.create_profile_volume!(prof2, VolData_combined1)
 @test prof2.VolData.fields.Hua2017_Vp[30,40] ≈ 8.177263544536272
 
-GeophysicalModelGenerator.CreateProfileVolume!(prof1, VolData_combined1,  Depth_extent=(-300, -100))
+GeophysicalModelGenerator.create_profile_volume!(prof1, VolData_combined1,  Depth_extent=(-300, -100))
 @test extrema(prof1.VolData.depth.val) == (-300.0, -100.0)
 
 # Intersect surface data:
-GeophysicalModelGenerator.CreateProfileSurface!(prof1,Data.Surface)
+GeophysicalModelGenerator.create_profile_surface!(prof1,Data.Surface)
 @test prof1.SurfData[1].fields.MohoDepth[80] ≈ -37.58791461075397km
 
 # ditto with EQ data:
-GeophysicalModelGenerator.CreateProfilePoint!(prof1,Data.Point, section_width=5km)
-GeophysicalModelGenerator.CreateProfilePoint!(prof4,Data.Point, section_width=10km)
+GeophysicalModelGenerator.create_profile_point!(prof1,Data.Point, section_width=5km)
+GeophysicalModelGenerator.create_profile_point!(prof4,Data.Point, section_width=10km)
 @test  length(prof1.PointData[1].lon) == 13
 @test  length(prof4.PointData[1].lon) == 445
 
 
 # Test the main profile extraction routines:
-ExtractProfileData!(prof1, VolData_combined1, Data.Surface, Data.Point)
-ExtractProfileData!(prof2, VolData_combined1, Data.Surface, Data.Point)
-ExtractProfileData!(prof3, VolData_combined1, Data.Surface, Data.Point)
-ExtractProfileData!(prof4, VolData_combined1, Data.Surface, Data.Point)
+extract_ProfileData!(prof1, VolData_combined1, Data.Surface, Data.Point)
+extract_ProfileData!(prof2, VolData_combined1, Data.Surface, Data.Point)
+extract_ProfileData!(prof3, VolData_combined1, Data.Surface, Data.Point)
+extract_ProfileData!(prof4, VolData_combined1, Data.Surface, Data.Point)
 
-ExtractProfileData!(prof1, VolData_combined2, Data.Surface, Data.Point)
-ExtractProfileData!(prof2, VolData_combined2, Data.Surface, Data.Point)
-ExtractProfileData!(prof3, VolData_combined2, Data.Surface, Data.Point)
-ExtractProfileData!(prof4, VolData_combined2, Data.Surface, Data.Point)
+extract_ProfileData!(prof1, VolData_combined2, Data.Surface, Data.Point)
+extract_ProfileData!(prof2, VolData_combined2, Data.Surface, Data.Point)
+extract_ProfileData!(prof3, VolData_combined2, Data.Surface, Data.Point)
+extract_ProfileData!(prof4, VolData_combined2, Data.Surface, Data.Point)
 
-ExtractProfileData!(prof1, VolData_combined3, Data.Surface, Data.Point)
-ExtractProfileData!(prof2, VolData_combined3, Data.Surface, Data.Point)
-ExtractProfileData!(prof3, VolData_combined3, Data.Surface, Data.Point)
-ExtractProfileData!(prof4, VolData_combined3, Data.Surface, Data.Point)
+extract_ProfileData!(prof1, VolData_combined3, Data.Surface, Data.Point)
+extract_ProfileData!(prof2, VolData_combined3, Data.Surface, Data.Point)
+extract_ProfileData!(prof3, VolData_combined3, Data.Surface, Data.Point)
+extract_ProfileData!(prof4, VolData_combined3, Data.Surface, Data.Point)
 
 
 # Test that it works if only EQ's are provided:
 prof4 = ProfileData(depth = -20)
-ExtractProfileData!(prof4, nothing, NamedTuple(), Data.Point)
+extract_ProfileData!(prof4, nothing, NamedTuple(), Data.Point)
 @test isnothing(prof4.VolData)
 @test isempty(prof4.SurfData)
 @test length(prof4.PointData[1].depth) == 3280
@@ -111,7 +111,7 @@ ExtractProfileData!(prof4, nothing, NamedTuple(), Data.Point)
 @test isempty(prof4.SurfData)
 
 # Read profiles from file
-profile_list = ReadPickedProfiles("test_files/PickedProfiles.txt")
+profile_list = read_picked_profiles("test_files/PickedProfiles.txt")
 @test profile_list[5].start_lonlat == ProfileData(start_lonlat=(9.40627872242647, 45.5128223429144), end_lonlat=(7.85480813419117, 47.8635353553922)).start_lonlat
 
 # Try the convenience function
@@ -121,6 +121,6 @@ Depth_extent=nothing
 DimsSurfCross=(100,)
 section_width=50km
 
-profile_backwards_compat = ExtractProfileData("test_files/PickedProfiles.txt",1,"test_files/AlpineData_remote.txt",DimsVolCross=DimsVolCross,DepthVol=Depth_extent,DimsSurfCross=DimsSurfCross,WidthPointProfile=section_width)
+profile_backwards_compat = extract_ProfileData("test_files/PickedProfiles.txt",1,"test_files/AlpineData_remote.txt",DimsVolCross=DimsVolCross,DepthVol=Depth_extent,DimsSurfCross=DimsSurfCross,WidthPointProfile=section_width)
 
 @test length(profile_backwards_compat.PointData[1].lon) == 440

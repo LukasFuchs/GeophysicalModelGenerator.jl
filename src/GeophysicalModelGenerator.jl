@@ -13,7 +13,7 @@ export
         km, m, cm, mm, Myrs, yr, s, MPa, Pa, Pas, K, C, kg, mol,
         isDimensional, Value, NumValue, Unit, UnitValue
 
-export ReadCSV_LatLon, meshgrid, voxGrav
+export ReadCSV_LatLon, meshgrid, voxel_grav
 
 abstract type AbstractGeneralGrid end                                    # general grid types
 
@@ -32,13 +32,14 @@ export load
 # add files for specific tasks
 include("data_types.jl")
 include("data_import.jl")
-include("coord_conversion.jl")
 include("nearest_points.jl")
 include("utils.jl")
 include("Paraview_output.jl")
+include("Paraview_collection.jl")
 include("transformation.jl")
 include("voxel_gravity.jl")
 include("LaMEM_io.jl")
+include("pTatin_IO.jl")
 include("Setup_geometry.jl")
 include("stl.jl")
 include("ProfileProcessing.jl")
@@ -52,28 +53,36 @@ include("movies_from_pics.jl")
 # GMT routines
 
 """
-        ImportTopo     
+        import_topo
 Optional routine that imports topography. It requires you to load `GMT`
 """
-function ImportTopo end
+function import_topo end
 
 """
-        ImportGeoTIFF     
+        import_GeoTIFF
 Optional routine that imports GeoTIFF images. It requires you to load `GMT`
 """
-function ImportGeoTIFF end
-export ImportTopo, ImportGeoTIFF
+function import_GeoTIFF end
+export import_topo, import_GeoTIFF
 
 # GLMakie routines
 
 """
-        Visualise
+        visualise
 Interactive widget that allows you to explore a 3D data set `DataSet` in an interactive manner.
 It requires you to load `GLMakie`.
-"""
-function Visualise end
-export Visualise
+""";
+function visualise end
+export visualise
 
+
+"""
+    import_Gmsh(fname::String)
+
+Reads a Gmsh file. Requires loading `GridapGmsh`.
+"""
+function import_Gmsh end
+export import_Gmsh
 
 
 end

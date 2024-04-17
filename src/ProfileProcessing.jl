@@ -2,8 +2,8 @@
 # this is ProfileProcessing.jl
 # It contains functions and type definitions to gather selected data for given profiles
 
-export ProfileData, ExtractProfileData, CreateProfileData, GMG_Dataset, Load_Dataset_file, combine_VolData
-export ExtractProfileData!, ReadPickedProfiles
+export ProfileData, extract_ProfileData, create_ProfileData, GMG_Dataset, load_dataset_file, combine_vol_data
+export extract_ProfileData!, read_picked_profiles
 import Base: show
 
 """
@@ -133,7 +133,7 @@ end
 
 """
 
-    Datasets = Load_Dataset_file(file_datasets::String)
+    Datasets = load_dataset_file(file_datasets::String)
 
 This loads a CSV textfile that lists datasets, which is expected to have the following format:
 
@@ -149,7 +149,7 @@ Here, the meaning of the variables is:
 - `Active`: Do we want this file to be loaded or not? Optional parameter that defaults to `true`
 
 """
-function Load_Dataset_file(file_datasets::String)
+function load_dataset_file(file_datasets::String)
     datasets    = readdlm(file_datasets,',',skipstart =1); # read information on datasets to be used from text file
     n           = size(datasets,1)
 
@@ -209,13 +209,13 @@ end
 
 """
 
-    VolData_combined = combine_VolData(VolData::NamedTuple; lat=nothing, lon=nothing, depth=nothing, dims=(100,100,100), dataset_preferred = 1)
+    VolData_combined = combine_vol_data(VolData::NamedTuple; lat=nothing, lon=nothing, depth=nothing, dims=(100,100,100), dataset_preferred = 1)
 
 This takes different volumetric datasets (specified in `VolData`) & merges them into a single one.
 You need to either provide the "reference" dataset within the NamedTuple (`dataset_preferred`), or the lat/lon/depth and dimensions of the new dataset.
 
 """
-function combine_VolData(VolData::NamedTuple; lat=nothing, lon=nothing, depth=nothing, dims=(100,100,100), dataset_preferred = 1)
+function combine_vol_data(VolData::NamedTuple; lat=nothing, lon=nothing, depth=nothing, dims=(100,100,100), dataset_preferred = 1)
 
     # Get dimensions of new Data_set
     i = dataset_preferred
@@ -228,46 +228,46 @@ function combine_VolData(VolData::NamedTuple; lat=nothing, lon=nothing, depth=no
     lon1D   = range(lon...,     dims[1])
     lat1D   = range(lat...,     dims[2])
     z1D     = range(depth...,   dims[3])
-    Lon,Lat,Z  =   XYZGrid(lon1D, lat1D, z1D);
+    Lon,Lat,Z  =   xyz_grid(lon1D, lat1D, z1D);
     DataSetRef =   GeoData(Lon, Lat, Z, (Temporary=Z,))
 
     # Loop through all datasets
     DataSet_Names = String.(keys(VolData))
     for (i,DataSet) in enumerate(VolData)
-        DataSet_interp  = InterpolateDataFields(DataSet, Lon,Lat,Z)
+        DataSet_interp  = interpolate_datafields(DataSet, Lon,Lat,Z)
         names_fields    = String.(keys(DataSet_interp.fields))
         for (j,name) in enumerate(names_fields)
             name_new_field = DataSet_Names[i]*"_"*name # name of new field includes name of dataset
             # Note: we use ustrip here, and thereby remove the values, as the cross-section routine made problems
-            DataSetRef = AddField(DataSetRef,name_new_field, ustrip.(DataSet_interp.fields[j]))
+            DataSetRef = addfield(DataSetRef,name_new_field, ustrip.(DataSet_interp.fields[j]))
         end
     end
 
     # remove fake field
-    DataSetRef = RemoveField(DataSetRef, "Temporary")
+    DataSetRef = removefield(DataSetRef, "Temporary")
 
     return DataSetRef
 end
 
 
 """
-    CreateProfileVolume!(Profile::ProfileData, VolData::AbstractGeneralGrid; DimsVolCross::NTuple=(100,100), Depth_extent=nothing)
+    create_profile_volume!(Profile::ProfileData, VolData::AbstractGeneralGrid; DimsVolCross::NTuple=(100,100), Depth_extent=nothing)
 
 Creates a cross-section through a volumetric 3D dataset `VolData` with the data supplied in `Profile`. `Depth_extent` can be the minimum & maximum depth for vertical profiles
 """
-function CreateProfileVolume!(Profile::ProfileData, VolData::AbstractGeneralGrid; DimsVolCross::NTuple=(100,100), Depth_extent=nothing)
+function create_profile_volume!(Profile::ProfileData, VolData::AbstractGeneralGrid; DimsVolCross::NTuple=(100,100), Depth_extent=nothing)
 
     if Profile.vertical
         # take a vertical cross section
-        cross_tmp = CrossSection(VolData,dims=DimsVolCross, Start=Profile.start_lonlat,End=Profile.end_lonlat,Depth_extent=Depth_extent)        # create the cross section
+        cross_tmp = cross_section(VolData,dims=DimsVolCross, Start=Profile.start_lonlat,End=Profile.end_lonlat,Depth_extent=Depth_extent)        # create the cross section
 
         # flatten cross section and add this data to the structure
-        x_profile = FlattenCrossSection(cross_tmp,Start=Profile.start_lonlat)
-        cross_tmp = AddField(cross_tmp,"x_profile",x_profile)
+        x_profile = flatten_cross_section(cross_tmp,Start=Profile.start_lonlat)
+        cross_tmp = addfield(cross_tmp,"x_profile",x_profile)
 
     else
         # take a horizontal cross section
-        cross_tmp = CrossSection(VolData, Depth_level=Profile.depth, Interpolate=true, dims=DimsVolCross)
+        cross_tmp = cross_section(VolData, Depth_level=Profile.depth, Interpolate=true, dims=DimsVolCross)
     end
 
     Profile.VolData = cross_tmp # assign to Profile data structure
@@ -276,7 +276,7 @@ end
 
 
 ### internal function to process surface data - contrary to the volume data, we here have to save lon/lat/depth pairs for every surface data set, so we create a NamedTuple of GeoData data sets
-function CreateProfileSurface!(Profile::ProfileData, DataSet::NamedTuple; DimsSurfCross=(100,))
+function create_profile_surface!(Profile::ProfileData, DataSet::NamedTuple; DimsSurfCross=(100,))
     num_datasets = length(DataSet)
 
     tmp = NamedTuple()             # initialize empty one
@@ -288,11 +288,11 @@ function CreateProfileSurface!(Profile::ProfileData, DataSet::NamedTuple; DimsSu
 
         if Profile.vertical
             # take a vertical cross section
-            data = CrossSectionSurface(data_tmp, dims=DimsSurfCross, Start=Profile.start_lonlat, End=Profile.end_lonlat)        # create the cross section
+            data = cross_section_surface(data_tmp, dims=DimsSurfCross, Start=Profile.start_lonlat, End=Profile.end_lonlat)        # create the cross section
 
             # flatten cross section and add this data to the structure
-            x_profile   = FlattenCrossSection(data,Start=Profile.start_lonlat)
-            data        = AddField(data,"x_profile",x_profile)
+            x_profile    = flatten_cross_section(data,Start=Profile.start_lonlat)
+            data        = addfield(data,"x_profile",x_profile)
 
             # add the data set as a NamedTuple
             data_NT     = NamedTuple{(DataSetName[idata],)}((data,))
@@ -309,57 +309,62 @@ function CreateProfileSurface!(Profile::ProfileData, DataSet::NamedTuple; DimsSu
 end
 
 
-
 ### function to process point data - contrary to the volume data, we here have to save lon/lat/depth pairs for every point data set
-function CreateProfilePoint!(Profile::ProfileData, DataSet::NamedTuple; section_width=50km)
+function create_profile_point!(Profile::ProfileData, DataSet::NamedTuple; section_width=50km)
     num_datasets = length(DataSet)
 
     tmp = NamedTuple()             # initialize empty one
     DataSetName = keys(DataSet)    # Names of the datasets
     for idata = 1:num_datasets
-
         # load data set --> each data set is a single GeoData structure, so we'll only have to get the respective key to load the correct type
         data_tmp = DataSet[idata]
 
         if Profile.vertical
             # take a vertical cross section
-            data    = CrossSectionPoints(data_tmp, Start=Profile.start_lonlat, End=Profile.end_lonlat, section_width = section_width)        # create the cross section
+            data    = cross_section_points(data_tmp, Start=Profile.start_lonlat, End=Profile.end_lonlat, section_width = section_width)        # create the cross section
 
-            # flatten cross section and add this data to the structure
-            x_profile   = FlattenCrossSection(data,Start=Profile.start_lonlat)
-            data        = AddField(data,"x_profile",x_profile)
+            if isnothing(data)
+                # do nothing, as there is no data
+            else
+                # flatten cross section and add this data to the structure
+                x_profile    = flatten_cross_section(data,Start=Profile.start_lonlat)
+                data        = addfield(data,"x_profile",x_profile)
 
-            # add the data set as a NamedTuple
-            data_NT     = NamedTuple{(DataSetName[idata],)}((data,))
-            tmp         = merge(tmp,data_NT)
-
+                # add the data set as a NamedTuple
+                data_NT     = NamedTuple{(DataSetName[idata],)}((data,))
+                tmp         = merge(tmp,data_NT)
+                Profile.PointData = tmp # assign to profile data structure
+            end
         else
             # take a horizontal cross section
-            data    = CrossSection(data_tmp, Depth_level=Profile.depth, section_width = section_width)        # create the cross section
-
-            # add the data set as a NamedTuple
-            data_NT     = NamedTuple{(DataSetName[idata],)}((data,))
-            tmp         = merge(tmp,data_NT)
+            data    = cross_section(data_tmp, Depth_level=Profile.depth, section_width = section_width)        # create the cross section
+            if isnothing(data)
+                # do nothing, as there is no data
+            else
+                # add the data set as a NamedTuple
+                data_NT     = NamedTuple{(DataSetName[idata],)}((data,))
+                tmp         = merge(tmp,data_NT)
+                Profile.PointData = tmp # assign to profile data structure
+            end
         end
     end
 
-    Profile.PointData = tmp # assign to profile data structure
     return
 end
 
 
 """
-    ExtractProfileData!(Profile::ProfileData,VolData::GeoData, SurfData::NamedTuple, PointData::NamedTuple; DimsVolCross=(100,100),Depth_extent=nothing,DimsSurfCross=(100,),section_width=50)
+    extract_ProfileData!(Profile::ProfileData,VolData::GeoData, SurfData::NamedTuple, PointData::NamedTuple; DimsVolCross=(100,100),Depth_extent=nothing,DimsSurfCross=(100,),section_width=50)
 
 Extracts data along a vertical or horizontal profile
 """
-function ExtractProfileData!(Profile::ProfileData,VolData::Union{Nothing,GeoData}=nothing, SurfData::NamedTuple=NamedTuple(), PointData::NamedTuple=NamedTuple(); DimsVolCross=(100,100),Depth_extent=nothing,DimsSurfCross=(100,),section_width=50km)
+function extract_ProfileData!(Profile::ProfileData,VolData::Union{Nothing,GeoData}=nothing, SurfData::NamedTuple=NamedTuple(), PointData::NamedTuple=NamedTuple(); DimsVolCross=(100,100),Depth_extent=nothing,DimsSurfCross=(100,),section_width=50km)
 
     if !isnothing(VolData)
-        CreateProfileVolume!(Profile, VolData; DimsVolCross=DimsVolCross, Depth_extent=Depth_extent)
+        create_profile_volume!(Profile, VolData; DimsVolCross=DimsVolCross, Depth_extent=Depth_extent)
     end
-    CreateProfileSurface!(Profile, SurfData, DimsSurfCross=DimsSurfCross)
-    CreateProfilePoint!(Profile, PointData, section_width=section_width)
+    create_profile_surface!(Profile, SurfData, DimsSurfCross=DimsSurfCross)
+    create_profile_point!(Profile, PointData, section_width=section_width)
 
     return nothing
 end
@@ -367,7 +372,7 @@ end
 """
 This reads the picked profiles from disk and returns a vector of ProfileData
 """
-function ReadPickedProfiles(ProfileCoordFile::String)
+function read_picked_profiles(ProfileCoordFile::String)
 
     profiles = Vector{ProfileData}()
     profile_data = readdlm(ProfileCoordFile,skipstart=1,',')
@@ -384,14 +389,14 @@ end
 
 # this is mostly for backwards compatibility
 """
-    ExtractProfileData(ProfileCoordFile::String,ProfileNumber::Int64,DataSetFile::String; DimsVolCross=(100,100),DepthVol=nothing,DimsSurfCross=(100,),WidthPointProfile=50km)
+    extract_ProfileData(ProfileCoordFile::String,ProfileNumber::Int64,DataSetFile::String; DimsVolCross=(100,100),DepthVol=nothing,DimsSurfCross=(100,),WidthPointProfile=50km)
 
 This is a convenience function (mostly for backwards compatibility with the MATLAB GUI) that loads the data from file & projects it onto a profile
 """
-function ExtractProfileData(ProfileCoordFile::String,ProfileNumber::Int64,DataSetFile::String; DimsVolCross=(100,100),DepthVol=nothing,DimsSurfCross=(100,),WidthPointProfile=50km)
+function extract_ProfileData(ProfileCoordFile::String,ProfileNumber::Int64,DataSetFile::String; DimsVolCross=(100,100),DepthVol=nothing,DimsSurfCross=(100,),WidthPointProfile=50km)
 
     # read profile
-    profile_list = ReadPickedProfiles(ProfileCoordFile)
+    profile_list = read_picked_profiles(ProfileCoordFile)
     profile = profile_list[ProfileNumber]
 
     println("lon start ",   profile.start_lonlat[1])
@@ -400,16 +405,16 @@ function ExtractProfileData(ProfileCoordFile::String,ProfileNumber::Int64,DataSe
     println("lat end ",     profile.end_lonlat[2])
 
     # read all datasets:
-    Datasets_all = Load_Dataset_file(DataSetFile)
+    Datasets_all = load_dataset_file(DataSetFile)
 
     # load all Data
     VolData, SurfData, PointData, ScreenshotData, TopoData = load_GMG(Datasets_all)
 
     # merge VolData:
-    VolData_combined = combine_VolData(VolData)
+    VolData_combined = combine_vol_data(VolData)
 
     # project data onto profile:
-    ExtractProfileData!(profile, VolData_combined, SurfData, PointData,
+    extract_ProfileData!(profile, VolData_combined, SurfData, PointData,
                         DimsVolCross=DimsVolCross, DimsSurfCross=DimsSurfCross,
                         Depth_extent=DepthVol, section_width=WidthPointProfile)
 
@@ -421,7 +426,7 @@ end
 
 # Boris: I don't know exactly in which format you have your current files;
 ### wrapper function to extract data for a single profile
-function ExtractProfileData(ProfileCoordFile,ProfileNumber,DataSetName,DataSetFile,DataSetType,DimsVolCross,DepthVol,DimsSurfCross,WidthPointProfile)
+function extract_ProfileData(ProfileCoordFile,ProfileNumber,DataSetName,DataSetFile,DataSetType,DimsVolCross,DepthVol,DimsSurfCross,WidthPointProfile)
 
     # start and end points are saved in a text file
     profile_data = readdlm(ProfileCoordFile,skipstart=1,',')
@@ -446,13 +451,13 @@ function ExtractProfileData(ProfileCoordFile,ProfileNumber,DataSetName,DataSetFi
     ind_point  = findall( x -> x .== "Point", DataSetType)
 
     # extract volume data
-    CreateProfileVolume!(Profile,DataSetName[ind_vol],DataSetFile[ind_vol],DimsVolCross,DepthVol)
+    create_profile_volume!(Profile,DataSetName[ind_vol],DataSetFile[ind_vol],DimsVolCross,DepthVol)
 
     # extract surface data
-    CreateProfileSurface!(Profile,DataSetName[ind_surf],DataSetFile[ind_surf],DimsSurfCross)
+    create_profile_surface!(Profile,DataSetName[ind_surf],DataSetFile[ind_surf],DimsSurfCross)
 
     # extract point data
-    CreateProfilePoint!(Profile,DataSetName[ind_point],DataSetFile[ind_point],WidthPointProfile)
+    create_profile_point!(Profile,DataSetName[ind_point],DataSetFile[ind_point],WidthPointProfile)
 
     return Profile
 end
@@ -463,7 +468,7 @@ end
 ### currently, the function is quite slow, as the different data sets are reloaded for each profile.
 ### a faster way would be to load one data set and create the profiles from it and then move on to the next one. However, this would require to hold all the profile data in memory, which may be a bit much...
 
-function CreateProfileData(file_profiles,file_datasets;Depth_extent=(-300,0),DimsVolCross=(500,300),DimsSurfCross = (100,),WidthPointProfile = 20km)
+function create_ProfileData(file_profiles,file_datasets;Depth_extent=(-300,0),DimsVolCross=(500,300),DimsSurfCross = (100,),WidthPointProfile = 20km)
     # get the number of profiles
     profile_data = readdlm(file_profiles,skipstart=1,',')
     NUM          = convert.(Int,profile_data[:,1]);
@@ -480,7 +485,7 @@ function CreateProfileData(file_profiles,file_datasets;Depth_extent=(-300,0),Dim
     for iprofile = 1:length(ProfileNumber)
 
         # 2. process the profiles
-        ExtractedData = ExtractProfileData(file_profiles,ProfileNumber[iprofile],DataSetName,DataSetFile,DataSetType,DimsVolCross,Depth_extent,DimsSurfCross,WidthPointProfile)
+        ExtractedData = extract_ProfileData(file_profiles,ProfileNumber[iprofile],DataSetName,DataSetFile,DataSetType,DimsVolCross,Depth_extent,DimsSurfCross,WidthPointProfile)
 
         # 3. save data as JLD2
         fn = "Profile"*string(ProfileNumber[iprofile])

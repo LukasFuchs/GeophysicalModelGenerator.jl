@@ -1,12 +1,12 @@
 # This is data_types.jl
 # contains type definitions to be used in GeophysicalModelGenerator
 
-import Base: show, size
+import Base: show, size, extrema
 
-export  GeoData, ParaviewData, UTMData, CartData,
-        LonLatDepthGrid, XYZGrid, Velocity_SphericalToCartesian!,
-        Convert2UTMzone, Convert2CartData, ProjectionPoint,
-        coordinate_grids, CreateCartGrid, CartGrid, flip
+export  GeoData, ParaviewData, UTMData, CartData, Q1Data, FEData,
+        lonlatdepth_grid, xyz_grid, velocity_spherical_to_cartesian!,
+        convert2UTMzone, convert2CartData, convert2FEData, ProjectionPoint,
+        coordinate_grids, create_CartGrid, CartGrid, flip
 
 
 """
@@ -26,7 +26,7 @@ struct ProjectionPoint
     Lon     :: Float64
     EW      :: Float64
     NS      :: Float64
-    zone    :: Integer
+    zone    :: Int64
     isnorth :: Bool
 end
 
@@ -84,7 +84,7 @@ Data structure that holds one or several fields with longitude, latitude and dep
 julia> Lat         =   1.0:3:10.0;
 julia> Lon         =   11.0:4:20.0;
 julia> Depth       =   (-20:5:-10)*km;
-julia> Lon3D,Lat3D,Depth3D = LonLatDepthGrid(Lon, Lat, Depth);
+julia> Lon3D,Lat3D,Depth3D = lonlatdepth_grid(Lon, Lat, Depth);
 julia> Lon3D
 3×4×3 Array{Float64, 3}:
 [:, :, 1] =
@@ -217,6 +217,7 @@ struct GeoData <: AbstractGeneralGrid
 
 end
 size(d::GeoData) = size(d.lon.val)
+extrema(d::GeoData) = [extrema(d.lon); extrema(d.lat); extrema(d.depth)]
 
 # Print an overview of the Geodata struct:
 function Base.show(io::IO, d::GeoData)
@@ -254,7 +255,7 @@ end
 This creates a `GeoData` struct if you have a Tuple with 3D coordinates as input.
 # Example
 ```julia
-julia> data = GeoData(LonLatDepthGrid(-10:10,-5:5,0))
+julia> data = GeoData(lonlatdepth_grid(-10:10,-5:5,0))
 GeoData 
   size      : (21, 11, 1)
   lon       ϵ [ -10.0 : 10.0]
@@ -349,7 +350,7 @@ function Base.convert(::Type{ParaviewData}, d::GeoData)
                 # If the field name contains the string "color" we do not apply a vector transformation as it is supposed to contain RGB colors
                 if !occursin("color", string(field_names[i]))
                     println("Applying a vector transformation to field: $(field_names[i])")
-                    Velocity_SphericalToCartesian!(d, d.fields[i])  # Transfer it to x/y/z format
+                    velocity_spherical_to_cartesian!(d, d.fields[i])  # Transfer it to x/y/z format
                 end
             end
         end
@@ -381,7 +382,7 @@ Data structure that holds one or several fields with UTM coordinates (east-west)
 julia> ew          =   422123.0:100:433623.0
 julia> ns          =   4.514137e6:100:4.523637e6
 julia> depth       =   -5400:250:600
-julia> EW,NS,Depth =   XYZGrid(ew, ns, depth);
+julia> EW,NS,Depth =   xyz_grid(ew, ns, depth);
 julia> Data        =   ustrip.(Depth);
 julia> Data_set    =   UTMData(EW,NS,Depth,33, true, (FakeData=Data,Data2=Data.+1.))
 UTMData
@@ -406,7 +407,7 @@ GeoData
 ```
 which would allow visualizing this in paraview in the usual manner:
 ```julia-repl
-julia> Write_Paraview(Data_set1, "Data_set1")
+julia> write_paraview(Data_set1, "Data_set1")
 1-element Vector{String}:
  "Data_set1.vts"
 ```
@@ -484,6 +485,7 @@ struct UTMData <: AbstractGeneralGrid
 
 end
 size(d::UTMData) = size(d.EW.val)
+extrema(d::UTMData) = [extrema(d.EW.val); extrema(d.NS.val); extrema(d.depth.val)]
 
 # Print an overview of the UTMData struct:
 function Base.show(io::IO, d::UTMData)
@@ -615,14 +617,14 @@ end
 
 
 """
-    Convert2UTMzone(d::GeoData, p::ProjectionPoint)
+    convert2UTMzone(d::GeoData, p::ProjectionPoint)
 
 Converts a `GeoData` structure to fixed UTM zone, around a given `ProjectionPoint`
     This useful to use real data as input for a cartesian geodynamic model setup (such as in LaMEM). In that case, we need to project map coordinates to cartesian coordinates.
     One way to do this is by using UTM coordinates. Close to the `ProjectionPoint` the resulting coordinates will be rectilinear and distance in meters. The map distortion becomes larger the further you are away from the center.
 
 """
-function Convert2UTMzone(d::GeoData, proj::ProjectionPoint)
+function convert2UTMzone(d::GeoData, proj::ProjectionPoint)
 
     EW = zeros(size(d.lon));
     NS  = zeros(size(d.lon));
@@ -673,7 +675,7 @@ Data structure that holds one or several fields with with Cartesian x/y/z coordi
 julia> x        =   0:2:10
 julia> y        =   -5:5
 julia> z        =   -10:2:2
-julia> X,Y,Z    =   XYZGrid(x, y, z);
+julia> X,Y,Z    =   xyz_grid(x, y, z);
 julia> Data     =   Z
 julia> Data_set =   CartData(X,Y,Z, (FakeData=Data,Data2=Data.+1.))
 CartData
@@ -687,7 +689,7 @@ CartData
 `CartData` is particularly useful in combination with cartesian geodynamic codes, such as LaMEM, which require cartesian grids.
 You can directly save your data to Paraview with
 ```julia-repl
-julia> Write_Paraview(Data_set, "Data_set")
+julia> write_paraview(Data_set, "Data_set")
 1-element Vector{String}:
  "Data_set.vts"
 ```
@@ -726,9 +728,9 @@ struct CartData <: AbstractGeneralGrid
         end
 
         # check depth & convert it to units of km in case no units are given or it has different length units
-        x = Convert!(x,km)
-        y = Convert!(y,km)
-        z = Convert!(z,km)
+        x = convert!(x,km)
+        y = convert!(y,km)
+        z = convert!(z,km)
 
         # fields should be a NamedTuple. In case we simply provide an array, lets transfer it accordingly
         if !(typeof(fields)<: NamedTuple)
@@ -769,6 +771,7 @@ struct CartData <: AbstractGeneralGrid
 
 end
 size(d::CartData) = size(d.x.val)
+extrema(d::CartData) = [extrema(d.x.val); extrema(d.y.val); extrema(d.z.val)]
 
 # Print an overview of the UTMData struct:
 function Base.show(io::IO, d::CartData)
@@ -808,7 +811,7 @@ end
 This creates a `CartData` struct if you have a Tuple with 3D coordinates as input.
 # Example
 ```julia
-julia> data = CartData(XYZGrid(-10:10,-5:5,0))
+julia> data = CartData(xyz_grid(-10:10,-5:5,0))
 CartData
     size    : (21, 11, 1)
     x       ϵ [ -10.0 km : 10.0 km]
@@ -823,11 +826,11 @@ CartData(xyz::Tuple) = CartData(xyz[1],xyz[2],xyz[3],(Z=xyz[3],))
 
 
 """
-    Convert2UTMzone(d::CartData, proj::ProjectionPoint)
+    convert2UTMzone(d::CartData, proj::ProjectionPoint)
 
 This transfers a `CartData` dataset to a `UTMData` dataset, that has a single UTM zone. The point around which we project is `ProjectionPoint`
 """
-function Convert2UTMzone(d::CartData, proj::ProjectionPoint)
+function convert2UTMzone(d::CartData, proj::ProjectionPoint)
 
     return UTMData(ustrip.(d.x.val).*1e3 .+ proj.EW,ustrip.(d.y.val).*1e3 .+ proj.NS,
                    ustrip.(d.z.val).*1e3,proj.zone, proj.isnorth, d.fields, d.atts)
@@ -835,10 +838,10 @@ function Convert2UTMzone(d::CartData, proj::ProjectionPoint)
 end
 
 """
-    Convert2CartData(d::UTMData, proj::ProjectionPoint)
+    convert2CartData(d::UTMData, proj::ProjectionPoint)
 Converts a `UTMData` structure to a `CartData` structure, which essentially transfers the dimensions to km
 """
-function Convert2CartData(d::UTMData, proj::ProjectionPoint)
+function convert2CartData(d::UTMData, proj::ProjectionPoint)
 
         # handle the case where an old structure is converted
         if any( propertynames(d) .== :atts)
@@ -853,50 +856,50 @@ end
 
 
 """
-    Convert2CartData(d::GeoData, proj::ProjectionPoint)
+    convert2CartData(d::GeoData, proj::ProjectionPoint)
 Converts a `GeoData` structure to a `CartData` structure, which essentially transfers the dimensions to km
 """
-function Convert2CartData(d::GeoData, proj::ProjectionPoint)
+function convert2CartData(d::GeoData, proj::ProjectionPoint)
 
-    d_UTM = Convert2UTMzone(d,proj)
+    d_UTM = convert2UTMzone(d,proj)
     return CartData( (ustrip.(d_UTM.EW.val) .- proj.EW)./1e3, (ustrip.(d_UTM.NS.val) .- proj.NS)./1e3,
                      ustrip.(d_UTM.depth.val), d_UTM.fields,d_UTM.atts)
 end
 
 """
-    Lon, Lat, Depth = LonLatDepthGrid(Lon::Any, Lat::Any, Depth:Any)
+    Lon, Lat, Depth = lonlatdepth_grid(Lon::Any, Lat::Any, Depth:Any)
 
 Creates 3D arrays of `Lon`, `Lat`, `Depth` from 1D vectors or numbers
 
 # Example 1: Create 3D grid
 ```julia-repl
-julia> Lon,Lat,Depth =  LonLatDepthGrid(10:20,30:40,(-10:-1)km);
+julia> Lon,Lat,Depth =  lonlatdepth_grid(10:20,30:40,(-10:-1)km);
 julia> size(Lon)
 (11, 11, 10)
 ```
 
 # Example 2: Create 2D lon/lat grid @ a given depth
 ```julia-repl
-julia> Lon,Lat,Depth =  LonLatDepthGrid(10:20,30:40,-50km);
+julia> Lon,Lat,Depth =  lonlatdepth_grid(10:20,30:40,-50km);
 julia> size(Lon)
 (11, 11)
 ```
 
 # Example 3: Create 2D lon/depth grid @ a given lat
 ```julia-repl
-julia> Lon,Lat,Depth =  LonLatDepthGrid(10:20,30,(-10:-1)km);
+julia> Lon,Lat,Depth =  lonlatdepth_grid(10:20,30,(-10:-1)km);
 julia> size(Lon)
 (11, 11)
 ```
 # Example 4: Create 1D vertical line @ a given lon/lat point
 ```julia-repl
-julia> Lon,Lat,Depth =  LonLatDepthGrid(10,30,(-10:-1)km);
+julia> Lon,Lat,Depth =  lonlatdepth_grid(10,30,(-10:-1)km);
 julia> size(Lon)
 (10, )
 ```
 
 """
-function LonLatDepthGrid(Lon::Any, Lat::Any, Depth::Any)
+function lonlatdepth_grid(Lon::Any, Lat::Any, Depth::Any)
 
     nLon    = length(Lon)
     nLat    = length(Lat)
@@ -932,26 +935,26 @@ function LonLatDepthGrid(Lon::Any, Lat::Any, Depth::Any)
 end
 
 """
-    X,Y,Z = XYZGrid(X_vec::Any, Y_vec::Any, Z_vec::Any)
+    X,Y,Z = xyz_grid(X_vec::Any, Y_vec::Any, Z_vec::Any)
 
-Creates a `X,Y,Z` grid. It works just as `LonLatDepthGrid` apart from the better suited name.
+Creates a `X,Y,Z` grid. It works just as `lonlatdepth_grid` apart from the better suited name.
 
 # Example 1: Create 3D grid
 ```julia-repl
-julia> X,Y,Z =  XYZGrid(10:20,30:40,(-10:-1)km);
+julia> X,Y,Z =  xyz_grid(10:20,30:40,(-10:-1)km);
 julia> size(X)
 (11, 11, 10)
 ```
 
-See `LonLatDepthGrid` for more examples.
+See `lonlatdepth_grid` for more examples.
 """
-function XYZGrid(X_vec::Any, Y_vec::Any, Z_vec::Any)
-    return X,Y,Z = LonLatDepthGrid(X_vec,Y_vec,Z_vec)
+function xyz_grid(X_vec::Any, Y_vec::Any, Z_vec::Any)
+    return X,Y,Z = lonlatdepth_grid(X_vec,Y_vec,Z_vec)
 end
 
 
 """
-    Velocity_SphericalToCartesian!(Data::GeoData, Velocity::Tuple)
+    velocity_spherical_to_cartesian!(Data::GeoData, Velocity::Tuple)
 
 In-place conversion of velocities in spherical velocities `[Veast, Vnorth, Vup]` to cartesian coordinates (for use in paraview).
 
@@ -960,7 +963,7 @@ will not be retained correctly (as a different `[x,y,z]` coordinate system is us
 Therefore, if you want to display or color that correctly in Paraview, you need to store these magnitudes as separate fields
 
 """
-function Velocity_SphericalToCartesian!(Data::GeoData, Velocity::Tuple)
+function velocity_spherical_to_cartesian!(Data::GeoData, Velocity::Tuple)
     # Note: This is partly based on scripts originally written by Tobias Baumann, Uni Mainz
 
     for i in eachindex(Data.lat.val)
@@ -988,7 +991,7 @@ function Velocity_SphericalToCartesian!(Data::GeoData, Velocity::Tuple)
 end
 
 # Internal function that converts arrays to a GeoUnit with certain units
-function Convert!(d,u)
+function convert!(d,u)
     if unit.(d)[1]==NoUnits
         d = d*u                # in case it has no dimensions
     end
@@ -998,44 +1001,86 @@ function Convert!(d,u)
     return d
 end
 
+""" 
+    out = average_q1(d::Array) 
+3D linear averaging of a 3D array
 """
-    X,Y,Z = coordinate_grids(Data::CartData)
+function average_q1(d::Array) 
+
+    # we are using multidimensional iterations in julia here following https://julialang.org/blog/2016/02/iteration/
+    out = zeros(eltype(d),size(d) .- 1)
+    R = CartesianIndices(out)
+    Ifirst, Ilast = first(R), last(R)
+    I1 = oneunit(Ifirst)
+    for I in R
+        n, s = 0, zero(eltype(out))
+        for J in max(Ifirst, I):min(Ilast + I1, I+I1)
+            s += d[J]
+            n += 1
+        end
+        out[I] = s/n
+    end
+
+    return out
+end    
+
+"""
+    X,Y,Z = coordinate_grids(Data::CartData; cell=false)
 
 Returns 3D coordinate arrays
 """
-function coordinate_grids(Data::CartData)
+function coordinate_grids(Data::CartData; cell=false)
+    X,Y,Z = NumValue(Data.x), NumValue(Data.y), NumValue(Data.z)
 
-    return NumValue(Data.x), NumValue(Data.y), NumValue(Data.z)
+    if cell
+        X,Y,Z = average_q1(X),average_q1(Y), average_q1(Z)
+    end
+
+    return X,Y,Z
 end
 
 """
-    LON,LAT,Z = coordinate_grids(Data::GeoData)
+    LON,LAT,Z = coordinate_grids(Data::GeoData; cell=false)
 
 Returns 3D coordinate arrays
 """
-function coordinate_grids(Data::GeoData)
+function coordinate_grids(Data::GeoData; cell=false)
+    X,Y,Z = NumValue(Data.lon), NumValue(Data.lat), NumValue(Data.depth)
 
-    return NumValue(Data.lon), NumValue(Data.lat), NumValue(Data.depth)
+    if cell
+        X,Y,Z = average_q1(X),average_q1(Y), average_q1(Z)
+    end
+
+    return X,Y,Z
 end
 
 """
-    EW,NS,Z = coordinate_grids(Data::UTMData)
+    EW,NS,Z = coordinate_grids(Data::UTMData; cell=false)
 
 Returns 3D coordinate arrays
 """
-function coordinate_grids(Data::UTMData)
+function coordinate_grids(Data::UTMData; cell=false)
 
-    return NumValue(Data.EW), NumValue(Data.NS), NumValue(Data.depth)
+    X,Y,Z =  NumValue(Data.EW), NumValue(Data.NS), NumValue(Data.depth)
+
+    if cell
+        X,Y,Z = average_q1(X),average_q1(Y), average_q1(Z)
+    end
+
+    return X,Y,Z
 end
 
 """
-    X,Y,Z = coordinate_grids(Data::ParaviewData)
+    X,Y,Z = coordinate_grids(Data::ParaviewData; cell=false)
 
 Returns 3D coordinate arrays
 """
-function coordinate_grids(Data::ParaviewData)
-    X,Y,Z = XYZGrid(NumValue(Data.x), NumValue(Data.y), NumValue(Data.z))
-
+function coordinate_grids(Data::ParaviewData; cell=false)
+    X,Y,Z = xyz_grid(NumValue(Data.x), NumValue(Data.y), NumValue(Data.z))
+    if cell
+        X,Y,Z = average_q1(X),average_q1(Y), average_q1(Z)
+    end
+    
     return X,Y,Z
 end
 
@@ -1058,7 +1103,7 @@ size(d::CartGrid) = d.N
 
 """
 
-    Grid = CreateCartGrid(; size=(), x = nothing, z = nothing, y = nothing, extent = nothing, CharDim = nothing)
+    Grid = create_CartGrid(; size=(), x = nothing, z = nothing, y = nothing, extent = nothing, CharDim = nothing)
 
 Creates a 1D, 2D or 3D cartesian grid of given size. Grid can be created by defining the size and either the `extent` (length) of the grid in all directions, or by defining start & end points (`x`,`y`,`z`).
 If you specify `CharDim` (a structure with characteristic dimensions created with `GeoParams.jl`), we will nondimensionalize the grd before creating the struct.
@@ -1075,7 +1120,7 @@ Note: since this is mostly for solid Earth geoscience applications, the second d
 
 A basic case with non-dimensional units:
 ```julia
-julia> Grid = CreateCartGrid(size=(10,20),x=(0.,10), z=(2.,10))
+julia> Grid = create_CartGrid(size=(10,20),x=(0.,10), z=(2.,10))
 Grid{Float64, 2}
            size: (10, 20)
          length: (10.0, 8.0)
@@ -1086,7 +1131,7 @@ Grid{Float64, 2}
 An example with dimensional units:
 ```julia
 julia> CharDim = GEO_units()
-julia> Grid    = CreateCartGrid(size=(10,20),x=(0.0km, 10km), z=(-20km, 10km), CharDim=CharDim)
+julia> Grid    = create_CartGrid(size=(10,20),x=(0.0km, 10km), z=(-20km, 10km), CharDim=CharDim)
 CartGrid{Float64, 2}
            size: (10, 20)
          length: (0.01, 0.03)
@@ -1097,7 +1142,7 @@ CartGrid{Float64, 2}
 
 
 """
-function CreateCartGrid(;
+function create_CartGrid(;
     size=(),
      x = nothing, z = nothing, y = nothing,
      extent = nothing,
@@ -1203,12 +1248,16 @@ end
 
 
 """
-    X,Y,Z = coordinate_grids(Data::CartGrid)
+    X,Y,Z = coordinate_grids(Data::CartGrid; cell=false)
 
 Returns 3D coordinate arrays
 """
-function coordinate_grids(Data::CartGrid)
-    X,Y,Z = XYZGrid(NumValue(Data.coord1D[1]), NumValue(Data.coord1D[2]), NumValue(Data.coord1D[3]))
+function coordinate_grids(Data::CartGrid; cell=false)
+    X,Y,Z = xyz_grid(NumValue(Data.coord1D[1]), NumValue(Data.coord1D[2]), NumValue(Data.coord1D[3]))
+
+    if cell
+        X,Y,Z = average_q1(X),average_q1(Y), average_q1(Z)
+    end
 
     return X,Y,Z
 end
@@ -1220,9 +1269,9 @@ Returns a CartData set given a cartesian grid `Grid` and `fields` defined on tha
 """
 function CartData(Grid::CartGrid, fields::NamedTuple; y_val=0.0)
     if length(Grid.N)==3
-        X,Y,Z = XYZGrid(Grid.coord1D[1], Grid.coord1D[2], Grid.coord1D[3])  # 3D grid
+        X,Y,Z = xyz_grid(Grid.coord1D[1], Grid.coord1D[2], Grid.coord1D[3])  # 3D grid
     elseif length(Grid.N)==2
-        X,Y,Z = XYZGrid(Grid.coord1D[1], y_val, Grid.coord1D[2])  # 2D grid
+        X,Y,Z = xyz_grid(Grid.coord1D[1], y_val, Grid.coord1D[2])  # 2D grid
 
         # the fields need to be reshaped from 2D to 3D arrays; we replace them in the NamedTuple as follows
         names = keys(fields)
@@ -1234,4 +1283,252 @@ function CartData(Grid::CartGrid, fields::NamedTuple; y_val=0.0)
     end
 
     return CartData(X,Y,Z, fields)
+end
+
+
+
+
+"""
+
+Holds a Q1 Finite Element Data set with vertex and cell data. The specified coordinates are the ones of the vertices.
+"""
+struct Q1Data <: AbstractGeneralGrid
+    x           ::  GeoUnit
+    y           ::  GeoUnit
+    z           ::  GeoUnit
+    fields      ::  NamedTuple
+    cellfields  ::  NamedTuple
+    atts        ::  Dict
+
+    # Ensure that the data is of the correct format
+    function Q1Data(x,y,z,fields,cellfields, atts=nothing)
+
+        # Check ordering of the arrays in case of 3D
+        if sum(size(x).>1)==3
+            if maximum(abs.(diff(x,dims=2)))>maximum(abs.(diff(x,dims=1))) || maximum(abs.(diff(x,dims=3)))>maximum(abs.(diff(x,dims=1)))
+                @warn "It appears that the x-array has a wrong ordering"
+            end
+            if maximum(abs.(diff(y,dims=1)))>maximum(abs.(diff(y,dims=2))) || maximum(abs.(diff(y,dims=3)))>maximum(abs.(diff(y,dims=2)))
+                @warn "It appears that the y-array has a wrong ordering"
+            end
+        end
+
+        # check depth & convert it to units of km in case no units are given or it has different length units
+        x = convert!(x,km)
+        y = convert!(y,km)
+        z = convert!(z,km)
+
+        # fields should be a NamedTuple. In case we simply provide an array, lets transfer it accordingly
+        if !(typeof(fields)<: NamedTuple)
+            if (typeof(fields)<: Tuple)
+                if length(fields)==1
+                    fields = (DataSet1=first(fields),)  # The field is a tuple; create a NamedTuple from it
+                else
+                    error("Please employ a NamedTuple as input, rather than a Tuple")  # out of luck
+                end
+            else
+                fields = (DataSet1=fields,)
+            end
+        end
+
+        DataField = fields[1];
+        if typeof(DataField)<: Tuple
+            DataField = DataField[1];           # in case we have velocity vectors as input
+        end
+
+        if !(size(x)==size(y)==size(z)==size(DataField))
+            error("The size of x/y/z and the vertex fields should all be the same!")
+        end
+
+        # take care of attributes
+        if isnothing(atts)
+            # if nothing is given as attributes, then we note that
+            atts = Dict("note" => "No attributes were given to this dataset")
+        else
+            # check if a dict was given
+            if !(typeof(atts)<: Dict)
+                error("Attributes should be given as Dict!")
+            end
+        end
+
+        return new(x,y,z,fields,cellfields,atts)
+
+     end
+
+end
+size(d::Q1Data) = size(d.x.val) .- 1 # size of mesh
+extrema(d::Q1Data) = [extrema(d.x.val); extrema(d.y.val); extrema(d.z.val)]
+
+# Print an overview of the Q1Data struct:
+function Base.show(io::IO, d::Q1Data)
+    println(io,"Q1Data ")
+    println(io,"      size    : $(size(d))")
+    println(io,"      x       ϵ [ $(minimum(d.x.val)) : $(maximum(d.x.val))]")
+    println(io,"      y       ϵ [ $(minimum(d.y.val)) : $(maximum(d.y.val))]")
+
+    if  any(isnan.(NumValue(d.z)))
+        z_vals = extrema(d.z.val[isnan.(d.z.val).==false])
+        println(io,"      z       ϵ [ $(z_vals[1]) : $(z_vals[2])]; has NaN's")
+    else
+        z_vals = extrema(d.z.val)
+        println(io,"      z       ϵ [ $(z_vals[1]) : $(z_vals[2])]")
+    end
+    println(io,"      fields  : $(keys(d.fields))")
+    println(io,"  cellfields  : $(keys(d.cellfields))")
+
+    # Only print attributes if we have non-default attributes
+    if any( propertynames(d) .== :atts)
+        show_atts = true
+        if haskey(d.atts,"note")
+            if d.atts["note"]=="No attributes were given to this dataset"
+                show_atts = false
+            end
+        end
+        if show_atts
+        println(io,"  attributes: $(keys(d.atts))")
+        end
+    end
+end
+
+
+"""
+    Q1Data(xyz::Tuple{Array,Array,Array})
+
+This creates a `Q1Data` struct if you have a Tuple with 3D coordinates as input.
+# Example
+```julia
+julia> data = Q1Data(xyz_grid(-10:10,-5:5,0))
+CartData
+    size    : (21, 11, 1)
+    x       ϵ [ -10.0 km : 10.0 km]
+    y       ϵ [ -5.0 km : 5.0 km]
+    z       ϵ [ 0.0 km : 0.0 km]
+    fields  : (:Z,)
+  attributes: ["note"]
+```
+"""
+Q1Data(xyz::Tuple) = Q1Data(xyz[1],xyz[2],xyz[3],(Z=xyz[3],),NamedTuple())
+
+
+"""
+    FEData{dim, points_per_cell} 
+
+Structure that holds Finite Element info with vertex and cell data. Works in 2D/3D for arbitrary elements
+
+Parameters
+===
+- `vertices` with the points on the mesh (`dim` x `Npoints`)
+- `connectivity` with the connectivity of the mesh (`points_per_cell` x `Ncells`)
+- `fields` with the fields on the vertices
+- `cellfields` with the fields of the cells
+
+"""
+struct FEData{dim, points_per_cell} 
+    vertices     :: Array{Float64}
+    connectivity :: Array{Int64}
+    fields       :: NamedTuple
+    cellfields   :: NamedTuple
+
+    # Ensure that the data is of the correct format
+    function FEData(vertices,connectivity,fields=nothing,cellfields=nothing)
+        if isnothing(fields);       fields = NamedTuple();      end
+        if isnothing(cellfields);   cellfields = NamedTuple();  end
+
+        dim = size(vertices,1)
+        points_per_cell = size(connectivity,1)
+        if points_per_cell>size(connectivity,2)
+            println("# of points_per_cell > size(connectivity,2). Are you sure the ordering is ok?")
+        end
+        if dim>size(vertices,2)
+            println("# of dims > size(vertices,2). Are you sure the ordering is ok?")
+        end
+        
+        return new{dim,points_per_cell}(vertices,connectivity,fields,cellfields)
+     end
+
+end
+
+
+# Print an overview of the FEData struct:
+function Base.show(io::IO, d::FEData{dim, points_per_cell}) where {dim, points_per_cell}
+    println(io,"FEData{$dim,$points_per_cell} ")
+    println(io,"    elements : $(size(d.connectivity,2))")
+    println(io,"    vertices : $(size(d.vertices,2))")
+    println(io,"     x       ϵ [ $(minimum(d.vertices,dims=2)[1]) : $(maximum(d.vertices,dims=2)[1])]")
+    println(io,"     y       ϵ [ $(minimum(d.vertices,dims=2)[2]) : $(maximum(d.vertices,dims=2)[2])]")
+    println(io,"     z       ϵ [ $(minimum(d.vertices,dims=2)[3]) : $(maximum(d.vertices,dims=2)[3])]")
+    println(io,"      fields : $(keys(d.fields))")
+    println(io,"  cellfields : $(keys(d.cellfields))")
+end
+
+extrema(d::FEData) = extrema(d.vertices, dims=2)
+size(d::FEData) = size(d.connectivity,2)
+
+"""
+    convert2FEData(d::Q1Data
+
+"""
+    convert2FEData(d::Q1Data)
+
+
+
+"""
+    X,Y,Z = coordinate_grids(Data::Q1Data; cell=false)
+
+Returns 3D coordinate arrays
+"""
+function coordinate_grids(Data::Q1Data; cell=false)
+    X,Y,Z = NumValue(Data.x), NumValue(Data.y), NumValue(Data.z)
+    if cell
+        X,Y,Z = average_q1(X),average_q1(Y), average_q1(Z)
+    end
+    return X,Y,Z
+end
+
+
+"""
+    fe_data::FEData = convert2FEData(d::Q1Data)
+
+Creates a Q1 FEM mesh from the `Q1Data` data which holds the vertex coordinates and cell/vertex fields
+"""
+function convert2FEData(data::Q1Data)
+
+    X,Y,Z = coordinate_grids(data);
+        
+    # Unique number of all vertices
+    el_num = zeros(Int64,size(X))
+    num = 1;
+    for I in eachindex(el_num)
+        el_num[I]  = num;
+        num += 1;
+    end
+    
+    # Coordinates of all vertices
+    vertices = [X[:]'; Y[:]'; Z[:]']
+    
+    # Connectivity of all cells
+    nelx,nely,nelz = size(X) .- 1
+    connectivity = zeros(Int64, 8, nelx*nely*nelz)
+    n = 1;
+    for k=1:nelz
+        for j=1:nely
+            for i=1:nelx
+               connectivity[:,n] = [el_num[i,j,k  ], el_num[i+1,j,k  ], el_num[i,j+1,k  ], el_num[i+1,j+1,k  ],
+                                    el_num[i,j,k+1], el_num[i+1,j,k+1], el_num[i,j+1,k+1], el_num[i+1,j+1,k+1]]
+                n += 1                                    
+            end
+        end
+    end
+
+    data_fields=()
+    for f in data.fields
+        data_fields = (data_fields..., f[:])
+    end
+
+    data_cellfields=()
+    for f in data.cellfields
+        data_cellfields = (data_cellfields..., f[:])
+    end
+
+    return FEData(vertices,connectivity,  NamedTuple{keys(data.fields)}(data_fields),  NamedTuple{keys(data.cellfields)}(data_cellfields))
 end

@@ -1,10 +1,10 @@
 using NearestNeighbors
 
-export PointData2NearestGrid, CountMap
+export point_to_nearest_grid, countmap
 
 
 """
-    Grid_counts = PointData2NearestGrid(Point::CartData, Grid::CartData; radius_factor=1)
+    Grid_counts = point_to_nearest_grid(Point::CartData, Grid::CartData; radius_factor=1)
 
 Uses nearest neighbour interpolation to count how many points (given by `Point`) are in the vicinity of a 3D `Grid`. 
 The search radius is `R=radius_factor*(Δx² + Δy² + Δz²)^(1/3)`
@@ -13,38 +13,38 @@ The search radius is `R=radius_factor*(Δx² + Δy² + Δz²)^(1/3)`
 
 `Grid_counts` is `Grid` but with an additional field `Count` that has the number of hits
 """
-function PointData2NearestGrid(Point::CartData, Grid::CartData; radius_factor=1)
+function point_to_nearest_grid(Point::CartData, Grid::CartData; radius_factor=1)
 
     @assert length(size(Point.x)) == 1
 
     # call routine
-    Count = PointData2NearestGrid(NumValue(Point.x),NumValue(Point.y), NumValue(Point.z), NumValue(Grid.x),NumValue(Grid.y),NumValue(Grid.z); radius_factor=radius_factor)
+    Count = point_to_nearest_grid(NumValue(Point.x),NumValue(Point.y), NumValue(Point.z), NumValue(Grid.x),NumValue(Grid.y),NumValue(Grid.z); radius_factor=radius_factor)
 
     # return CartGrid with added field
-    return  AddField(Grid,"Count",Count);
+    return  addfield(Grid,"Count",Count);
 end
 
 
 """
-    Grid_counts = PointData2NearestGrid(pt_x,pt_y,pt_z, Grid::CartData; radius_factor=1)
+    Grid_counts = point_to_nearest_grid(pt_x,pt_y,pt_z, Grid::CartData; radius_factor=1)
 
 Uses nearest neighbour interpolation to count how many points (given by `pt_x`,`pt_y`,`pt_z` coordinate vectors) are in the 
 vicinity of 3D `CartGrid` specified by `Grid`. The search radius is `R=radius_factor*(Δx² + Δy² + Δz²)^(1/3)`
 
 `Grid_counts` is `Grid` but with an additional field `Count` that has the number of hits
 """
-function PointData2NearestGrid(pt_x,pt_y,pt_z, Grid::CartData; radius_factor=1)
+function point_to_nearest_grid(pt_x,pt_y,pt_z, Grid::CartData; radius_factor=1)
 
     # call routine
-    Count = PointData2NearestGrid(pt_x,pt_y,pt_z, NumValue(Grid.x),NumValue(Grid.y),NumValue(Grid.z); radius_factor=radius_factor)
+    Count = point_to_nearest_grid(pt_x,pt_y,pt_z, NumValue(Grid.x),NumValue(Grid.y),NumValue(Grid.z); radius_factor=radius_factor)
 
     # return CartGrid with added field
-    return  AddField(Grid,"Count",Count);
+    return  addfield(Grid,"Count",Count);
 end
 
 
 """
-    Grid_counts = PointData2NearestGrid(Point::GeoData, Grid::GeoData; radius_factor=1)
+    Grid_counts = point_to_nearest_grid(Point::GeoData, Grid::GeoData; radius_factor=1)
 
 Uses nearest neighbour interpolation to count how many points (given by `Point`) are in the vicinity of a 3D `Grid`. 
 The search radius is `R=radius_factor*(Δx² + Δy² + Δz²)^(1/3)`
@@ -53,44 +53,44 @@ The search radius is `R=radius_factor*(Δx² + Δy² + Δz²)^(1/3)`
 
 `Grid_counts` is `Grid` but with an additional field `Count` that has the number of hits
 """
-function PointData2NearestGrid(Point::GeoData, Grid::GeoData; radius_factor=1)
+function point_to_nearest_grid(Point::GeoData, Grid::GeoData; radius_factor=1)
 
     @assert length(size(Point.lon)) == 1
 
     # call routine
-    Count = PointData2NearestGrid(NumValue(Point.lon),NumValue(Point.lat), NumValue(Point.depth), NumValue(Grid.lon),NumValue(Grid.lat),NumValue(Grid.depth); radius_factor=radius_factor)
+    Count = point_to_nearest_grid(NumValue(Point.lon),NumValue(Point.lat), NumValue(Point.depth), NumValue(Grid.lon),NumValue(Grid.lat),NumValue(Grid.depth); radius_factor=radius_factor)
 
     # return CartGrid with added field
-    return  AddField(Grid,"Count",Count);
+    return  addfield(Grid,"Count",Count);
 end
 
 
 """
-    Grid_counts = PointData2NearestGrid(pt_x,pt_y,pt_z, Grid::GeoData; radius_factor=1)
+    Grid_counts = point_to_nearest_grid(pt_x,pt_y,pt_z, Grid::GeoData; radius_factor=1)
 
 Uses nearest neighbour interpolation to count how many points (given by `pt_x`,`pt_y`,`pt_z` coordinate vectors) are in the 
 vicinity of 3D `GeoData` specified by `Grid`. The search radius is `R=radius_factor*(Δx² + Δy² + Δz²)^(1/3)`
 
 `Grid_counts` is `Grid` but with an additional field `Count` that has the number of hits
 """
-function PointData2NearestGrid(pt_x,pt_y,pt_z, Grid::GeoData; radius_factor=1)
+function point_to_nearest_grid(pt_x,pt_y,pt_z, Grid::GeoData; radius_factor=1)
 
     # call routine
-    Count = PointData2NearestGrid(pt_x,pt_y,pt_z, NumValue(Grid.lon),NumValue(Grid.lat),NumValue(Grid.depth); radius_factor=radius_factor)
+    Count = point_to_nearest_grid(pt_x,pt_y,pt_z, NumValue(Grid.lon),NumValue(Grid.lat),NumValue(Grid.depth); radius_factor=radius_factor)
 
     # return CartGrid with added field
-    return  AddField(Grid,"Count",Count);
+    return  addfield(Grid,"Count",Count);
 end
 
 """
-    count = PointData2NearestGrid(pt_x,pt_y,pt_z, X,Y,Z; radius_factor=1)
+    count = point_to_nearest_grid(pt_x,pt_y,pt_z, X,Y,Z; radius_factor=1)
 
 This uses nearest neighbour interpolation to count how many points (given by `pt_x`,`pt_y`,`pt_z` coordinate vectors) are in the 
 vicinity of 3D grid point specified by `X`,`Y`,`Z` 3D coordinate arrays, with regular spacing `(Δx,Δy,Δz)`.
 The search radius is `R=radius_factor*(Δx² + Δy² + Δz²)^(1/3)`
 
 """
-function PointData2NearestGrid(pt_x,pt_y,pt_z, X,Y,Z; radius_factor=1)
+function point_to_nearest_grid(pt_x,pt_y,pt_z, X,Y,Z; radius_factor=1)
     
     data = zeros(3,length(pt_x));
     data[1,:],data[2,:],data[3,:] = pt_x[:], pt_y[:], pt_z[:]
@@ -115,7 +115,7 @@ function PointData2NearestGrid(pt_x,pt_y,pt_z, X,Y,Z; radius_factor=1)
 end
 
 """
-    DatasetCountMap = CountMap(DataSet::GeoData,field::String,stepslon::Int64,stepslat::Int64)
+    DatasetcountMap = countmap(DataSet::GeoData,field::String,stepslon::Int64,stepslat::Int64)
 
 Takes a 2D GeoData struct and counts entries of `field` per predefined control area. `field` should only consist of 1.0s and 0.0s. The control area is defined by `steplon` and `steplat`.
 `steplon` is the number of control areas in longitude direction and `steplat` the number of control areas in latitude direction.
@@ -132,18 +132,18 @@ GeoData
 
 julia> steplon  = 125
 julia> steplat  = 70
-julia> countmap = CountMap(Data_Faults,"Faults",steplon,steplat)
+julia> countmap = countmap(Data_Faults,"Faults",steplon,steplat)
 
 GeoData 
     size      : (124, 69, 1)
     lon       ϵ [ -9.751471789279 : 34.75891471959677]
     lat       ϵ [ 35.26604656731949 : 59.73926004602028]
     depth     ϵ [ 0.0 : 1.0]
-    fields    : (:CountMap,)
+    fields    : (:countmap,)
 ```julia
 
 """
-function CountMap(DataSet::GeoData,field::String,stepslon::Int64,stepslat::Int64)
+function countmap(DataSet::GeoData,field::String,stepslon::Int64,stepslat::Int64)
 
     lon      = unique(DataSet.lon.val)
     lat      = unique(DataSet.lat.val)
@@ -178,9 +178,9 @@ function CountMap(DataSet::GeoData,field::String,stepslon::Int64,stepslat::Int64
     countmap = countmap ./ maxcount
 
     # create new GeoData
-    Lon3D,Lat3D, Data = LonLatDepthGrid(loncen,latcen,0);
+    Lon3D,Lat3D, Data = lonlatdepth_grid(loncen,latcen,0);
     Data[:,:,1]       .= countmap
-    DatasetCountMap   = GeoData(Lon3D,Lat3D,Data,(CountMap=Data,))
+    DatasetcountMap   = GeoData(Lon3D,Lat3D,Data,(countmap=Data,))
 
-    return DatasetCountMap
+    return DatasetcountMap
 end
